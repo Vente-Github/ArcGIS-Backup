@@ -4,14 +4,14 @@
   vars:
     # Installation path in server
     workdir: /root
+    url_base_gitlab: https://gitlab.com/cabildo-tf/vente/monitoring/arcgis-backup/-/raw/dev/scripts
     script_filename: generate_properties.sh
-    url: https://gist.githubusercontent.com/nacholore/d3b5281b0dae96be51d499d575fcd835/raw/9853b4d2188c28a9a12b35941b0e2cd40bce0cbf
     properties_path: "{{ workdir }}/properties"
 
   tasks:
     - name: Download script for generate properties
       get_url:
-        url: "{{ url }}/{{ script_filename }}"
+        url: "{{ url_base_gitlab }}/{{ script_filename }}"
         dest: "{{ workdir }}/{{ script_filename }}"
 
     - name: Change permisions
@@ -43,7 +43,9 @@
     workdir: C:\arcgis-backup
     pushgateway_credentials_path: "{{ workdir }}/credentials.xml"
     properties_path: /root/properties
-    filename_generate_credentials: generate-credentials.ps1
+    generate_credentials_filename: generate_credentials.ps1
+    backup_filename: backup.ps1
+    url_base_gitlab: https://gitlab.com/cabildo-tf/vente/monitoring/arcgis-backup/-/raw/dev/scripts
   tasks: 
   - name: Create directory {{ workdir }}
     win_file:
@@ -55,19 +57,24 @@
       src: "{{ properties_path }}/"
       dest: "{{ workdir }}/"
 
-  - name: Download script generate credentials
-    vars:
-      url_base: https://gist.githubusercontent.com/nacholore/0dba5c5f2dbbf3c2c5fbb993720233d1/raw/b350ca116f4e5091f05b0f9a52f62350f6b30d41/
+  - name: "Download script {{ generate_credentials_filename }}"
     win_get_url:
-      url: "{{ url_base }}/{{ filename_generate_credentials }}"
-      dest: "{{ workdir }}/{{ filename_generate_credentials }}"
+      url: "{{ url_base_gitlab }}/{{ generate_credentials_filename }}"
+      dest: "{{ workdir }}/{{ generate_credentials_filename }}"
       follow_redirects: all
 
-  - name: Generate credentials
+  - name: "Generate pushgateway credentials: {{ pushgateway_credentials_path }}"
     vars:
       user: "{{ lookup('env', 'PUSHGATEWAY_USER') }}"
       password: "{{ lookup('env', 'PUSHGATEWAY_PASS') }}"
-    win_command: "powershell.exe -ExecutionPolicy ByPass -File {{ workdir }}/{{ filename_generate_credentials }} -user {{ user }} -password {{ password }} -path {{ pushgateway_credentials_path }}"
+    win_command: "powershell.exe -ExecutionPolicy ByPass -File {{ workdir }}/{{ generate_credentials_filename }} -user {{ user }} -password {{ password }} -path {{ pushgateway_credentials_path }}"
+
+  - name: "Download script {{ backup_filename }}"
+    vars:
+    win_get_url:
+      url: "{{ url_base_gitlab }}/{{ backup_filename }}"
+      dest: "{{ workdir }}/{{ backup_filename }}"
+      follow_redirects: all
 
   - name: Create schedule task - ArcGIS Backup incremental
     vars:
