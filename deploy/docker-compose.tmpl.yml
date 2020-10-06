@@ -1,0 +1,50 @@
+version: '3.7'
+
+services:
+  arcgis-backup-task:
+    image: ${IMAGE_NAME:-registry.gitlab.com/cabildo-tf/vente/deploy/ansible/master}:${IMAGE_TAG:-latest}
+    command: /playbook/create_arcgis_backup_task.yml
+    environment:
+      TAG_HOSTS:
+      HOSTS:
+      ANSIBLE_USER:
+      ANSIBLE_PASSWORD:
+      ANSIBLE_CONNECTION:
+      ANSIBLE_WINRM_SERVER_CERT_VALIDATION:
+      ANSIBLE_PORT:
+      ANSIBLE_WINRM_MESSAGE_ENCRYPTION:
+      ANSIBLE_WINRM_TRANSPORT:
+      PUSHGATEWAY_JOB:
+      PUSHGATEWAY_USER:
+      PUSHGATEWAY_PASS:
+      WGD_PORTAL_ADMIN_URL:
+      WGD_PORTAL_ADMIN_USERNAME:
+      WGD_PORTAL_ADMIN_PASSWORD:
+      WGD_PORTAL_ADMIN_PASSWORD_ENCRYPTED: false
+      WGD_INCLUDE_SCENE_TILE_CACHES: false
+      WGD_BACKUP_STORE_PROVIDER: FileSystem
+      WGD_IS_PORTAL_PKI_AUTHENTICATED: false
+      WGD_PORTAL_CLIENT_CERTIFICATE_FILE_PATH: 
+      WGD_PORTAL_CLIENT_CERTIFICATE_PASSWORD: 
+      WGD_PORTAL_CLIENT_CERTIFICATE_PASSWORD_ENCRYPTED: 
+    configs:
+      - source: create-arcgis-backup-task-config
+        target: /playbook/create_arcgis_backup_task.yml
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 1m
+        window: 3m
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 100M
+        reservations:
+          memory: 5M
+
+configs:
+  create-arcgis-backup-task-config:
+    name: ${CREATE_ARCGIS_BACKUP_TASK_CONFIG_NAME:-create-arcgis-backup-task}
+    file: ./playbook/create_arcgis_backup_task.yml
