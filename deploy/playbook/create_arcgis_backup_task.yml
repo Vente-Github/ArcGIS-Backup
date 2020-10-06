@@ -90,13 +90,12 @@
       actions:
       - path: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
         arguments: >
-          "-ExecutionPolicy Unrestricted 
-          -NonInteractive 
-          -File C:\arcgis-backup\backup.ps1 -workdir {{ workdir }} 
-          -pushgateway_host {{ pushgateway_host }}
-          -pushgateway_job {{ pushgateway_job }}
-          -pushgateway_credential '{{ pushgateway_credentials_path }}'
-          -webgisdr_path '{{ webgisdr_runnable_path }}'
+          -Command "& 'C:\arcgis-backup\backup.ps1' 
+          -workdir '{{ workdir }}' 
+          -pushgateway_host {{ pushgateway_host }} 
+          -pushgateway_job {{ pushgateway_job }} 
+          -pushgateway_credential '{{ pushgateway_credentials_path }}' 
+          -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'"
       triggers:
         - type: monthlydow
@@ -123,13 +122,12 @@
       actions:
       - path: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
         arguments: >
-          "-ExecutionPolicy Unrestricted 
-          -NonInteractive 
-          -File C:\arcgis-backup\backup.ps1 -workdir '{{ workdir }}' 
-          -pushgateway_host {{ pushgateway_host }}
-          -pushgateway_job {{ pushgateway_job }}
-          -pushgateway_credential '{{ pushgateway_credentials_path }}'
-          -webgisdr_path '{{ webgisdr_runnable_path }}'
+          -Command "& 'C:\arcgis-backup\backup.ps1' 
+          -workdir '{{ workdir }}' 
+          -pushgateway_host {{ pushgateway_host }} 
+          -pushgateway_job {{ pushgateway_job }} 
+          -pushgateway_credential '{{ pushgateway_credentials_path }}' 
+          -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'"
       triggers:
         - type: monthlydow
