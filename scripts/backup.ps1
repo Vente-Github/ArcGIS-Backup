@@ -4,7 +4,7 @@ Param(
     [Parameter(Mandatory=$True)][string]$pushgateway_credentials,
     [Parameter(Mandatory=$True)][string]$pushgateway_job,
     [Parameter(Mandatory=$True)][string]$webgisdr_path,
-    [Parameter(Mandatory=$True)][string]$properties_
+    [Parameter(Mandatory=$True)][string]$file_properties
 )
 
 
