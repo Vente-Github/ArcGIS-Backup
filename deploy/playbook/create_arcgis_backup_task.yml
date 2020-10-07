@@ -100,7 +100,7 @@
           -file_properties '{{ file_properties }}'"
           -type 'full'"
       triggers:
-        - type: weekly
+        - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
           run_on_last_week_of_month: yes
           days_of_week: saturday
@@ -128,7 +128,7 @@
           -file_properties '{{ file_properties }}'
           -type 'incremental'"
       triggers:
-        - type: monthlydow
+        - type: weekly
           start_boundary: '2020-01-01T22:00:00'
           days_of_week: friday
       username: "{{ user }}"
