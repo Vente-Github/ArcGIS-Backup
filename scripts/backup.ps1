@@ -1,10 +1,11 @@
 Param(
     [Parameter(Mandatory=$True,Position=1)][string]$workdir,
     [Parameter(Mandatory=$True)][string]$pushgateway_host, 
-    [Parameter(Mandatory=$True)][string]$pushgateway_credential,
+    [Parameter(Mandatory=$True)][string]$pushgateway_credentials,
     [Parameter(Mandatory=$True)][string]$pushgateway_job,
     [Parameter(Mandatory=$True)][string]$webgisdr_path,
-    [Parameter(Mandatory=$True)][string]$file_properties
+    [Parameter(Mandatory=$True)][string]$file_properties,
+    [Parameter(Mandatory=$True)][string]$type
 )
 
 
@@ -37,7 +38,8 @@ function Create-Metric-File {
 function Extract-Metrics {
     Param (
         [string]$metric_file,
-        [string]$logfile
+        [string]$logfile,
+        [string]$type
     )
 
     $content = Get-Content -Path $logfile
@@ -49,22 +51,22 @@ function Extract-Metrics {
     foreach ($line in $content) {
         $matches = echo $line | select-string -Pattern $regex_component_time -AllMatches
         if ($matches.Matches.Length -gt 0) {
-            # Añade cabecera de la métrica sino se había inicializado antes
+            # AÃ±ade cabecera de la mÃ©trica sino se habÃ­a inicializado antes
             if ((Get-Item $metric_file).length -eq 0) {
                 Add-Content $metric_file "# HELP arcgis_backup_duration_seconds duration of each stage execution in seconds."
                 Add-Content $metric_file "# TYPE arcgis_backup_duration_seconds gauge"
             }
             $component = $matches.Matches.Groups[1] | % { $_.Value }        
             $duration_seconds = Extract-Duration-Seconds -line $line
-            Add-Content $metric_file "arcgis_backup_duration_seconds{component=`"$component`"} $duration_seconds"
+            Add-Content $metric_file "arcgis_backup_duration_seconds{component=`"$component`", type=`"$type`"} $duration_seconds"
 
         } elseif (!$path_backup ) {
             $path_backup = Extract-Path-Backup -line $line
         }
     }
 
-    Append-Metric-Size-Backup -path_backup $path_backup -metric_file $metric_file
-    Append-Metric-Creation-Date -metric_file $metric_file
+    Append-Metric-Size-Backup -path_backup $path_backup -metric_file $metric_file -type $type
+    Append-Metric-Creation-Date -metric_file $metric_file -type $type
 }
 
 
@@ -102,28 +104,30 @@ function Extract-Path-Backup {
 function Append-Metric-Size-Backup {
     Param (
         [string]$path_backup,
-        [string]$metric_file
+        [string]$metric_file,
+        [string]$type
     )
 
     if (( $path_backup ) -and ( Test-Path $path_backup -PathType leaf )) {
         $backup_size = (Get-Item $path_backup).length
         Add-Content $metric_file "# HELP arcgis_backup_size size of backup in bytes."
         Add-Content $metric_file "# TYPE arcgis_backup_size gauge"
-        Add-Content $metric_file "arcgis_backup_size_bytes $backup_size"
+        Add-Content $metric_file "arcgis_backup_size_bytes{type=`"$type`"} $backup_size"
     }
 }
 
 
 function Append-Metric-Creation-Date {
     Param (
-        [string]$metric_file
+        [string]$metric_file,
+        [string]$type
     )
 
     if ( (Get-Item $metric_file).length -gt 0 ) {
         $date_seconds = (Get-Date (Get-Date).ToUniversalTime() -UFormat %s).Replace(',','.')
         Add-Content $metric_file "# HELP backup_created_date_seconds created date in seconds."
         Add-Content $metric_file "# TYPE backup_created_date_seconds gauge"
-        Add-Content $metric_file "arcgis_backup_created_date_seconds $date_seconds"
+        Add-Content $metric_file "arcgis_backup_created_date_seconds{type=`"$type`"} $date_seconds"
     }
 }
 
@@ -143,8 +147,7 @@ function Push-Metrics {
         [string]$credential_path,
         [string]$pushgateway_job,
         [string]$metric_file
-    )
-    
+    ) 
     $credential = Import-CliXml -Path $credential_path
     $status = (Invoke-WebRequest -Uri "$pushgateway_host/metrics/job/$pushgateway_job" -Method POST -InFile $metric_file -Credential $credential).statuscode
     
@@ -158,7 +161,8 @@ function Main {
         [string]$pushgateway_credential,
         [string]$pushgateway_job,
         [string]$webgisdr_path,
-        [string]$file_properties
+        [string]$file_properties,
+        [string]$type
     )
 
     $stdout = "$workdir\webgisrd.log"
@@ -168,11 +172,11 @@ function Main {
 
     Run-WebGisDR -webgisdr_path $webgisdr_path -file_properties $file_properties -stdout $stdout -sterr $stderr
     Create-Metric-File -path $metric_file
-    Extract-Metrics -metric_file $metric_file -logfile $stdout
+    Extract-Metrics -metric_file $metric_file -logfile $stdout -type $type
 
     if ( (Get-Item $metric_file).length -gt 0 ) {
         Replace-NewLine -metric_file $metric_file
-        $status = Push-Metrics -pushgateway_host $pushgateway_host -credential_path $pushgateway_credential -pushgateway_job $pushgateway_job -metric_file $metric_file
+        $status = Push-Metrics -pushgateway_host $pushgateway_host -credential_path $pushgateway_credentials -pushgateway_job $pushgateway_job -metric_file $metric_file
         if ( $status -ne 200 ) {
             echo "ERROR - No sent metrics to pushgateway"
             $exit_code = 1
@@ -186,5 +190,4 @@ function Main {
     exit
 }
 
-
-Main  -workdir $workdir -pushgateway_host $pushgateway_host -pushgateway_credential $pushgateway_credential -pushgateway_job $pushgateway_job -webgisdr_path $webgisdr_path -file_properties $file_properties
+Main  -workdir $workdir -pushgateway_host $pushgateway_host -pushgateway_credential $pushgateway_credential -pushgateway_job $pushgateway_job -webgisdr_path $webgisdr_path -file_properties $file_properties -type $type
