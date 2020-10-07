@@ -82,12 +82,12 @@
       dest: "{{ workdir }}/{{ backup_filename }}"
       follow_redirects: all
 
-  - name: Create schedule task - ArcGIS Backup incremental
+  - name: Create schedule task - ArcGIS Backup full
     vars:
-      file_properties: "{{ workdir }}/webgisdr-incremental.properties"
+      file_properties: "{{ workdir }}/webgisdr-full.properties"
     win_scheduled_task:
-      name: ArcGIS - Incremental backup
-      description: Backup incremental de ArcGIS Enterprise
+      name: ArcGIS Enterprise - Full backup
+      description: Backup full de ArcGIS Enterprise
       actions:
       - path: '{{ powershell_path }}'
         arguments: >
@@ -98,7 +98,7 @@
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'"
-          -type 'incremental'"
+          -type 'full'"
       triggers:
         - type: weekly
           start_boundary: '2020-01-01T22:00:00'
@@ -110,12 +110,12 @@
       logon_type: "password"
       enabled: yes
 
-  - name: Create schedule task - ArcGIS Backup full
+  - name: Create schedule task - ArcGIS Backup incremental
     vars:
-      file_properties: "{{ workdir }}/webgisdr-full.properties"
+      file_properties: "{{ workdir }}/webgisdr-incremental.properties"
     win_scheduled_task:
-      name: ArcGIS - Full backup
-      description: Backup full de ArcGIS Enterprise
+      name: ArcGIS Enterprise - Incremental backup
+      description: Backup incremental de ArcGIS Enterprise
       actions:
       - path: '{{ powershell_path }}'
         arguments: >
@@ -126,7 +126,7 @@
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'
-          -type 'full'"
+          -type 'incremental'"
       triggers:
         - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
@@ -134,3 +134,4 @@
       username: "{{ user }}"
       password: "{{ password }}"
       logon_type: "password"
+      enabled: yes
