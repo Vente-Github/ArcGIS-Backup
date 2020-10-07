@@ -1,7 +1,7 @@
 Param(
     [Parameter(Mandatory=$True,Position=1)][string]$workdir,
     [Parameter(Mandatory=$True)][string]$pushgateway_host, 
-    [Parameter(Mandatory=$True)][string]$pushgateway_credentials,
+    [Parameter(Mandatory=$True)][string]$pushgateway_credential,
     [Parameter(Mandatory=$True)][string]$pushgateway_job,
     [Parameter(Mandatory=$True)][string]$webgisdr_path,
     [Parameter(Mandatory=$True)][string]$file_properties
@@ -172,7 +172,7 @@ function Main {
 
     if ( (Get-Item $metric_file).length -gt 0 ) {
         Replace-NewLine -metric_file $metric_file
-        $status = Push-Metrics -pushgateway_host $pushgateway_host -credential_path $pushgateway_credentials -pushgateway_job $pushgateway_job -metric_file $metric_file
+        $status = Push-Metrics -pushgateway_host $pushgateway_host -credential_path $pushgateway_credential -pushgateway_job $pushgateway_job -metric_file $metric_file
         if ( $status -ne 200 ) {
             echo "ERROR - No sent metrics to pushgateway"
             $exit_code = 1
@@ -185,5 +185,6 @@ function Main {
     $host.SetShouldExit($exit_code)
     exit
 }
+
 
 Main  -workdir $workdir -pushgateway_host $pushgateway_host -pushgateway_credential $pushgateway_credential -pushgateway_job $pushgateway_job -webgisdr_path $webgisdr_path -file_properties $file_properties
