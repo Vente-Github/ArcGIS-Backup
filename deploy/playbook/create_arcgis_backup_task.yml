@@ -46,6 +46,12 @@
     generate_credentials_filename: generate_credentials.ps1
     backup_filename: backup.ps1
     url_base_gitlab: https://gitlab.com/cabildo-tf/vente/monitoring/arcgis-backup/-/raw/dev/scripts
+    powershell_path: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+    webgisdr_runnable_path: C:\Program Files\ArcGIS\Portal\tools\webgisdr\webgisdr.bat
+    pushgateway_host: "{{ lookup('env', 'PUSHGATEWAY_HOST') }}"
+    pushgateway_job: "arcgis-backup"
+    user: "{{ lookup('env', 'TASK_USER') }}"
+    password: "{{ lookup('env', 'TASK_PASSWORD') }}"
   tasks: 
   - name: Create directory {{ workdir }}
     win_file:
@@ -78,27 +84,23 @@
 
   - name: Create schedule task - ArcGIS Backup incremental
     vars:
-      pushgateway_host: "{{ lookup('env', 'PUSHGATEWAY_HOST') }}"
-      pushgateway_job: "arcgis-backup"
-      webgisdr_runnable_path: C:\Program Files\ArcGIS\Portal\tools\webgisdr\webgisdr.bat
       file_properties: "{{ workdir }}/webgisdr-incremental.properties"
-      user: "{{ lookup('env', 'TASK_USER') }}"
-      password: "{{ lookup('env', 'TASK_PASSWORD') }}"
     win_scheduled_task:
       name: ArcGIS - Incremental backup
       description: Backup incremental de ArcGIS Enterprise
       actions:
-      - path: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+      - path: '{{ powershell_path }}'
         arguments: >
-          -Command "& 'C:\arcgis-backup\backup.ps1' 
+          -Command "& '{{ workdir }}/{{ backup_filename }}' 
           -workdir '{{ workdir }}' 
           -pushgateway_host {{ pushgateway_host }} 
           -pushgateway_job {{ pushgateway_job }} 
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'"
+          -type 'incremental'"
       triggers:
-        - type: monthlydow
+        - type: weekly
           start_boundary: '2020-01-01T22:00:00'
           run_on_last_week_of_month: yes
           days_of_week: saturday
@@ -110,31 +112,25 @@
 
   - name: Create schedule task - ArcGIS Backup full
     vars:
-      pushgateway_host: "{{ lookup('env', 'PUSHGATEWAY_HOST') }}"
-      pushgateway_job: "arcgis-backup"
-      webgisdr_runnable_path: C:\Program Files\ArcGIS\Portal\tools\webgisdr\webgisdr.bat
       file_properties: "{{ workdir }}/webgisdr-full.properties"
-      user: "{{ lookup('env', 'TASK_USER') }}"
-      password: "{{ lookup('env', 'TASK_PASSWORD') }}"
     win_scheduled_task:
       name: ArcGIS - Full backup
       description: Backup full de ArcGIS Enterprise
       actions:
-      - path: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+      - path: '{{ powershell_path }}'
         arguments: >
-          -Command "& 'C:\arcgis-backup\backup.ps1' 
+          -Command "& '{{ workdir }}/{{ backup_filename }}' 
           -workdir '{{ workdir }}' 
           -pushgateway_host {{ pushgateway_host }} 
           -pushgateway_job {{ pushgateway_job }} 
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
-          -file_properties '{{ file_properties }}'"
+          -file_properties '{{ file_properties }}'
+          -type 'full'"
       triggers:
         - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
-          run_on_last_week_of_month: yes
-          days_of_week: saturday
-          months_of_year: january,february,march,april,may,june,july,august,september,october,november,december
+          days_of_week: friday
       username: "{{ user }}"
       password: "{{ password }}"
       logon_type: "password"
