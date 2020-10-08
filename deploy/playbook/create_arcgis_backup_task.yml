@@ -50,8 +50,8 @@
     webgisdr_runnable_path: C:\Program Files\ArcGIS\Portal\tools\webgisdr\webgisdr.bat
     pushgateway_host: "{{ lookup('env', 'PUSHGATEWAY_HOST') }}"
     pushgateway_job: "arcgis-backup"
-    user: "{{ lookup('env', 'TASK_USER') }}"
-    password: "{{ lookup('env', 'TASK_PASSWORD') }}"
+    task_user: "{{ lookup('env', 'TASK_USER') }}"
+    task_password: "{{ lookup('env', 'TASK_PASSWORD') }}"
   tasks: 
   - name: Create directory {{ workdir }}
     win_file:
@@ -69,12 +69,6 @@
       dest: "{{ workdir }}/{{ generate_credentials_filename }}"
       follow_redirects: all
 
-  - name: "Generate pushgateway credentials: {{ pushgateway_credentials_path }}"
-    vars:
-      user: "{{ lookup('env', 'PUSHGATEWAY_USER') }}"
-      password: "{{ lookup('env', 'PUSHGATEWAY_PASS') }}"
-    win_command: "powershell.exe -ExecutionPolicy ByPass -File {{ workdir }}/{{ generate_credentials_filename }} -user {{ user }} -password {{ password }} -path {{ pushgateway_credentials_path }}"
-
   - name: "Download script {{ backup_filename }}"
     vars:
     win_get_url:
@@ -82,9 +76,29 @@
       dest: "{{ workdir }}/{{ backup_filename }}"
       follow_redirects: all
 
+  - name: "Add {{ task_user }} allow rights to folder {{ workdir }}"
+    win_acl:
+      path: "{{ workdir }}"
+      user: "{{ task_user }}"
+      rights: FullControl
+      type: allow
+      state: present
+      inherit: ContainerInherit, ObjectInherit
+      propagation: 'None'
+
+  - name: "Generate pushgateway credentials: {{ pushgateway_credentials_path }}"
+    vars:
+      user: "{{ lookup('env', 'PUSHGATEWAY_USER') }}"
+      password: "{{ lookup('env', 'PUSHGATEWAY_PASS') }}"
+    win_command: "powershell.exe -ExecutionPolicy ByPass -File {{ workdir }}/{{ generate_credentials_filename }} -user {{ user }} -password {{ password }} -path {{ pushgateway_credentials_path }}"
+    become: yes
+    become_user: "{{ task_user }}"
+    become_method: "runas"
+
   - name: Create schedule task - ArcGIS Backup full
     vars:
-      file_properties: "{{ workdir }}/webgisdr-full.properties"
+      type: full
+      file_properties: "{{ workdir }}/webgisdr-{{ type }}.properties"
     win_scheduled_task:
       name: ArcGIS Enterprise - Full backup
       description: Backup full de ArcGIS Enterprise
@@ -94,25 +108,26 @@
           -Command "& '{{ workdir }}/{{ backup_filename }}' 
           -workdir '{{ workdir }}' 
           -pushgateway_host {{ pushgateway_host }} 
-          -pushgateway_job {{ pushgateway_job }} 
+          -pushgateway_job '{{ pushgateway_job }}-{{ type }}' 
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'"
-          -type 'full'"
+          -type '{{ type }}'"
       triggers:
         - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
           run_on_last_week_of_month: yes
           days_of_week: saturday
           months_of_year: january,february,march,april,may,june,july,august,september,october,november,december
-      username: "{{ user }}"
-      password: "{{ password }}"
+      username: "{{ task_user }}"
+      password: "{{ task_password }}"
       logon_type: "password"
       enabled: yes
 
   - name: Create schedule task - ArcGIS Backup incremental
     vars:
-      file_properties: "{{ workdir }}/webgisdr-incremental.properties"
+      type: incremental
+      file_properties: "{{ workdir }}/webgisdr-{{ type }}.properties"
     win_scheduled_task:
       name: ArcGIS Enterprise - Incremental backup
       description: Backup incremental de ArcGIS Enterprise
@@ -122,16 +137,16 @@
           -Command "& '{{ workdir }}/{{ backup_filename }}' 
           -workdir '{{ workdir }}' 
           -pushgateway_host {{ pushgateway_host }} 
-          -pushgateway_job {{ pushgateway_job }} 
+          -pushgateway_job '{{ pushgateway_job }}-{{ type }}'
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'
-          -type 'incremental'"
+          -type '{{ type }}'"
       triggers:
         - type: weekly
           start_boundary: '2020-01-01T22:00:00'
           days_of_week: friday
-      username: "{{ user }}"
-      password: "{{ password }}"
+      username: "{{ task_user }}"
+      password: "{{ task_password }}"
       logon_type: "password"
       enabled: yes
