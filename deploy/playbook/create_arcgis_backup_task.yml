@@ -40,7 +40,7 @@
 - hosts: windows
   gather_facts: true
   vars:
-    workdir: C:\arcgis-backup
+    workdir: "{{ lookup('env', 'WORK_DIR') }}"
     pushgateway_credentials_path: "{{ workdir }}/credentials.xml"
     properties_path: /root/properties
     generate_credentials_filename: generate_credentials.ps1
