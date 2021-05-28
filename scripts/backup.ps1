@@ -20,6 +20,44 @@ function Run-WebGisDR {
     $process = Start-Process -FilePath $webgisdr_path -Args $args -NoNewWindow -RedirectStandardError $stderr -RedirectStandardOutput $stdout -PassThru -Wait
 }
 
+function Wait-Action {
+    [OutputType([int])]
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [scriptblock]$Condition,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [int]$Timeout = 60,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [object[]]$ArgumentList,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [int]$RetryInterval = 5
+    )
+    try {
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        while (($timer.Elapsed.TotalSeconds -lt $Timeout) -and (-not (& $Condition $ArgumentList))) {
+            Start-Sleep -Seconds $RetryInterval
+            $totalSecs = [math]::Round($timer.Elapsed.TotalSeconds, 0)
+            echo "Still waiting for action to complete after [$totalSecs] seconds..."
+        }
+        $timer.Stop()
+        if ($timer.Elapsed.TotalSeconds -gt $Timeout) {
+            throw 'Action did not complete before timeout period.'
+        } else {
+            return 1
+        }
+    } catch {
+        return 0
+    }
+}
 
 function Create-Metric-File {
     Param (
@@ -51,7 +89,7 @@ function Extract-Metrics {
     foreach ($line in $content) {
         $matches = echo $line | select-string -Pattern $regex_component_time -AllMatches
         if ($matches.Matches.Length -gt 0) {
-            # Añade cabecera de la métrica sino se habí­a inicializado antes
+            # AÃ±ade cabecera de la mÃ©trica sino se habÃ­Â­a inicializado antes
             if ((Get-Item $metric_file).length -eq 0) {
                 Add-Content $metric_file "# HELP arcgis_backup_duration_seconds duration of each stage execution in seconds."
                 Add-Content $metric_file "# TYPE arcgis_backup_duration_seconds gauge"
@@ -184,20 +222,26 @@ function Main {
     $exit_code = 0
 
     Run-WebGisDR -webgisdr_path $webgisdr_path -file_properties $file_properties -stdout $stdout -sterr $stderr
-    Create-Metric-File -path $metric_file
-    Extract-Metrics -metric_file $metric_file -logfile $stdout -type $type
-
-    if ( (Get-Item $metric_file).length -gt 0 ) {
-        Replace-NewLine -metric_file $metric_file
-        $status = Push-Metrics -pushgateway_host $pushgateway_host -credential_path $pushgateway_credentials -pushgateway_job $pushgateway_job -metric_file $metric_file
-        if ( $status -ne 200 ) {
-            echo "ERROR - No sent metrics to pushgateway"
-            $exit_code = 1
-        }
-    } else {
-        echo "ERROR - Backup not created"
+    $exists_webgisrd_log = (Wait-Action -Condition {Test-Path $stdout -PathType leaf})
+    if ($exists_webgisrd_log -eq 0) {
+        echo "ERROR - File $stdout not exists"
         $exit_code = 1
+    } else {
+        Create-Metric-File -path $metric_file
+        Extract-Metrics -metric_file $metric_file -logfile $stdout -type $type
 
+        if ( (Get-Item $metric_file).length -gt 0 ) {
+            Replace-NewLine -metric_file $metric_file
+            $status = Push-Metrics -pushgateway_host $pushgateway_host -credential_path $pushgateway_credentials -pushgateway_job $pushgateway_job -metric_file $metric_file
+            if ( $status -ne 200 ) {
+                echo "ERROR - No sent metrics to pushgateway"
+                $exit_code = 1
+            }
+        } else {
+            echo "ERROR - No metrics"
+            $exit_code = 1
+
+        }
     }
     $host.SetShouldExit($exit_code)
     exit
