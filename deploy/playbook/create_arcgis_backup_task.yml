@@ -54,6 +54,8 @@
     pushgateway_job: "arcgis-backup"
     task_user: "{{ lookup('env', 'TASK_USER') }}"
     task_password: "{{ lookup('env', 'TASK_PASSWORD') }}"
+    minio_alias: "{{ lookup('env', 'MINIO_ALIAS') }}"
+    minio_alias: "{{ lookup('env', 'MINIO_BUCKET') }}"
   tasks:
   - name: "Check {{ webgisdr_runnable_path}} exists" 
     win_stat:
@@ -82,10 +84,15 @@
       follow_redirects: all
 
   - name: "Download script {{ backup_filename }}"
-    vars:
     win_get_url:
       url: "{{ url_base_gitlab }}/{{ backup_filename }}"
       dest: "{{ workdir }}/{{ backup_filename }}"
+      follow_redirects: all
+
+  - name: "Download minio cli"
+    win_get_url:
+      url: "https://dl.min.io/client/mc/release/windows-amd64/mc.exe"
+      dest: "{{ workdir }}/mc.exe"
       follow_redirects: all
 
   - name: "Add {{ task_user }} allow rights to folder {{ workdir }}"
@@ -97,6 +104,16 @@
       state: present
       inherit: ContainerInherit, ObjectInherit
       propagation: 'None'
+
+  - name: "Set minio default"
+    vars:
+      minio_host: "{{ lookup('env', 'MINIO_HOST') }}"
+      minio_user: "{{ lookup('env', 'MINIO_USER') }}"
+      minio_pass: "{{ lookup('env', 'MINIO_PASS') }}"
+    win_command: "{{ workdir }}/mc.exe alias set {{ minio_alias }} {{ minio_host }} {{ minio_user }} {{ minio_pass }}"
+    become: yes
+    become_user: "{{ task_user }}"
+    become_method: "runas"
 
   - name: "Generate pushgateway credentials: {{ pushgateway_credentials_path }}"
     vars:
@@ -124,7 +141,8 @@
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'"
-          -type '{{ type }}'"
+          -type '{{ type }}'
+          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}""
       triggers:
         - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
@@ -153,7 +171,8 @@
           -pushgateway_credential '{{ pushgateway_credentials_path }}' 
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'
-          -type '{{ type }}'"
+          -type '{{ type }}'
+          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}"
       triggers:
         - type: weekly
           start_boundary: '2020-01-01T22:00:00'
