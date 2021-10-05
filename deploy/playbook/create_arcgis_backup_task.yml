@@ -55,7 +55,7 @@
     task_user: "{{ lookup('env', 'TASK_USER') }}"
     task_password: "{{ lookup('env', 'TASK_PASSWORD') }}"
     minio_alias: "{{ lookup('env', 'MINIO_ALIAS') }}"
-    minio_alias: "{{ lookup('env', 'MINIO_BUCKET') }}"
+    minio_bucket: "{{ lookup('env', 'MINIO_BUCKET') }}"
   tasks:
   - name: "Check {{ webgisdr_runnable_path}} exists" 
     win_stat:
