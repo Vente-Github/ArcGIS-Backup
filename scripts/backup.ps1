@@ -301,7 +301,7 @@ function Main {
         [string]$type,
         [string]$bucket
     )
-    $datetime = (Get-Date).ToString(“s”).Replace(“:”,”-“)
+    $datetime = (Get-Date).ToString("s").Replace(":","-")
     $logs_path = "$workdir\logs"
     $webgisdr_log = "$logs_path\$datetime-webgisrd.log"
     $backup_log = "$logs_path\$datetime-backup.log"
