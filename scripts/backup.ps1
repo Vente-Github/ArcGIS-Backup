@@ -17,7 +17,7 @@ function Log-Message
         [Parameter(Mandatory=$true, Position=0, ValueFromPipeline)]
         [string]$LogMessage
     )
-    Write-Output ("{0} - {1}" -f (Get-Date -format "dd-MM-yyyy HH:mm:ss.fff Z"), $LogMessage)
+    Write-Output ("{0} - {1}" -f (Get-Date -format "dd-MM-yyyyTHH:mm:ss.fffK"), $LogMessage)
 }
 
 
