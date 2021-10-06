@@ -17,7 +17,7 @@ function Log-Message
         [Parameter(Mandatory=$true, Position=0, ValueFromPipeline)]
         [string]$LogMessage
     )
-    Write-Output ("{0} - {1}" -f (Get-Date -format "dd-MM-yyyy HH:mm:ss.ffff"), $LogMessage)
+    Write-Output ("{0} - {1}" -f (Get-Date -format "dd-MM-yyyy HH:mm:ss.fff Z"), $LogMessage)
 }
 
 
@@ -155,7 +155,7 @@ function Extract-Metrics {
     foreach ($line in $content) {
         $matches = echo $line | select-string -Pattern $regex_component_time -AllMatches
         if ($matches.Matches.Length -gt 0) {
-            # Añade cabecera de la métrica sino se habí­a inicializado antes
+            # Añade cabecera de la métrica sino se había inicializado antes
             if ((Get-Item $metric_file).length -eq 0) {
                 Add-Content $metric_file "# HELP arcgis_backup_duration_seconds duration of each stage execution in seconds."
                 Add-Content $metric_file "# TYPE arcgis_backup_duration_seconds gauge"
