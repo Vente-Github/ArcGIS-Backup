@@ -40,12 +40,12 @@ function Run-WebGisDR {
     }
     
     # Espera por fichero log con la traza del backup, en caso de no crearse se retorna con fallo
-    $exists_webgisrd_log = (Wait-Action -Condition {Test-Path $webgisdr_log -PathType leaf})
-    if ($exists_webgisrd_log -eq 0) {
+    $exists_webgisdr_log = (Wait-Action -Condition {Test-Path $webgisdr_log -PathType leaf})
+    if ($exists_webgisdr_log -eq 0) {
         throw "File $webgisdr_log not exists"
     }
 
-    # Chequea el log de WebGISRD para comprobar que el backup está creado
+    # Chequea el log de WebGISDR para comprobar que el backup está creado
     $backup_successfully = Check-Status-Backup -webgisdr_log $webgisdr_log
     if ($backup_successfully -eq 0) {
         throw "Error creating ArcGIS Enterprise backup"
@@ -303,7 +303,7 @@ function Main {
     )
     $datetime = (Get-Date).ToString("s").Replace(":","-")
     $logs_path = "$workdir\logs"
-    $webgisdr_log = "$logs_path\$datetime-webgisrd.log"
+    $webgisdr_log = "$logs_path\$datetime-webgisdr.log"
     $backup_log = "$logs_path\$datetime-backup.log"
     $metric_file = "$logs_path\$datetime-metrics.txt"
     $minio_path = "$workdir\mc.exe"
