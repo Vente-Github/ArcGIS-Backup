@@ -142,7 +142,7 @@
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'"
           -type '{{ type }}'
-          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}""
+          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}'"
       triggers:
         - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
@@ -172,7 +172,7 @@
           -webgisdr_path '{{ webgisdr_runnable_path }}' 
           -file_properties '{{ file_properties }}'
           -type '{{ type }}'
-          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}"
+          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}'"
       triggers:
         - type: weekly
           start_boundary: '2020-01-01T22:00:00'

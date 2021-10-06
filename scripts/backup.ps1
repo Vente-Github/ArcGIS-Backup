@@ -310,9 +310,9 @@ function Main {
     $status_backup = 1
 
     try {
+        New-Item -ItemType Directory -Force -Path $logs_path | Out-Null
         Log-Message "Starting ArcGIS Enterprise backup" | Out-File $backup_log -Append
         Create-Metric-File -path $metric_file
-        New-Item -ItemType Directory -Force -Path $logs_path | Out-Null
         Run-WebGisDR -webgisdr_path $webgisdr_path -file_properties $file_properties -webgisdr_log $webgisdr_log
         $path_backup = Extract-Path-Backup -webgisdr_log $webgisdr_log
         Move-Backup-To-Minio -minio_path $minio_path -path_backup $path_backup -bucket $bucket -backup_log $backup_log
