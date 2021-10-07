@@ -303,8 +303,8 @@ function Main {
     )
     $datetime = (Get-Date).ToString("s").Replace(":","-")
     $logs_path = "$workdir\logs"
-    $webgisdr_log = "$logs_path\$datetime-webgisdr.log"
-    $backup_log = "$logs_path\$datetime-backup.log"
+    $webgisdr_log = "$logs_path\$datetime-$type-webgisdr.log"
+    $backup_log = "$logs_path\$datetime-$type-backup.log"
     $metric_file = "$logs_path\$datetime-metrics.txt"
     $minio_path = "$workdir\mc.exe"
     $status_backup = 1
