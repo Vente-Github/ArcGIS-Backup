@@ -9,15 +9,43 @@ Param(
     [Parameter(Mandatory=$True)][string]$bucket
 )
 
-function Log-Message
+$global:backup_log = $null
+
+
+function Log-Message-Base
 {
     [CmdletBinding()]
+    Param
+    (
+        [Parameter(Mandatory=$true, Position=0)]
+        [ValidateSet("INFO","WARN","ERROR","FATAL","DEBUG")]
+        [String]$Level = "INFO",
+        [Parameter(Mandatory=$true, Position=1, ValueFromPipeline)]
+        [string]$LogMessage
+    )
+    $line = Write-Output ("{0} {1}: {2}`n" -f (Get-Date -format "yyyy-MM-ddTHH:mm:ss.fffK"), $Level, $LogMessage) 
+    $line | Out-File $backup_log -Encoding UTF8 -Append -NoNewline
+}
+
+
+function Log-Message-Info
+{
     Param
     (
         [Parameter(Mandatory=$true, Position=0, ValueFromPipeline)]
         [string]$LogMessage
     )
-    Write-Output ("{0} - {1}" -f (Get-Date -format "yyyy-MM-ddTHH:mm:ss.fffK"), $LogMessage)
+    Log-Message-Base "INFO" $LogMessage
+}
+
+function Log-Message-Error
+{
+    Param
+    (
+        [Parameter(Mandatory=$true, Position=0, ValueFromPipeline)]
+        [string]$LogMessage
+    )
+    Log-Message-Base "ERROR" $LogMessage
 }
 
 
@@ -27,13 +55,12 @@ function Run-WebGisDR {
         [string]$file_properties,
         [string]$webgisdr_log
     )
-    Log-Message "WebGISDR starting" | Out-File $backup_log -Append
+    Log-Message-Info "WebGISDR starting"
 
     $args = "-e -f $file_properties"
     $stderr = New-TemporaryFile
     $process = Start-Process -FilePath $webgisdr_path -Args $args -NoNewWindow -RedirectStandardError $stderr -RedirectStandardOutput $webgisdr_log -PassThru -Wait
 
-    Log-Message $process.ExitCode | Out-File $backup_log -Append
     # El proceso de webgisdr falla
     if ($process.ExitCode -ne 0) {
         throw "$stderr"
@@ -51,7 +78,7 @@ function Run-WebGisDR {
         throw "Error creating ArcGIS Enterprise backup"
     }
 
-    Log-Message "WebGISDR completed" | Out-File $backup_log -Append
+    Log-Message-Info "WebGISDR completed"
 }
 
 
@@ -71,21 +98,18 @@ function Move-Backup-To-Minio {
     Param (
         [string]$minio_path,
         [string]$path_backup,
-        [string]$bucket,
-        [string]$backup_log
+        [string]$bucket
     )
-    Log-Message "Uploading backup $path_backup to $bucket" | Out-File  $backup_log -Append    
+    Log-Message-Info "Uploading backup $path_backup to $bucket"
 
-    $args = "cp --quiet $path_backup $bucket"
+    $args = "mv --quiet $path_backup $bucket"
     $stderr = New-TemporaryFile
-    $stdout = New-TemporaryFile
-    $process = Start-Process -FilePath $minio_path -Args $args -NoNewWindow -RedirectStandardError $stderr -RedirectStandardOutput $stdout -PassThru -Wait
-    Get-Content $stderr, $stdout | Log-Message |  Out-File $backup_log -Append   
+    $process = Start-Process -FilePath $minio_path -Args $args -NoNewWindow -RedirectStandardError $stderr -RedirectStandardOutput $backup_log -PassThru -Wait
 
     if ($process.ExitCode -ne 0) {
-        throw "Error uploading to $bucket"
+        throw "$stderr"
     }
-    Log-Message "Backup uploaded" | Out-File $backup_log -Append
+    Log-Message-Info "Backup uploaded"
 }
 
 function Wait-Action {
@@ -114,7 +138,7 @@ function Wait-Action {
         while (($timer.Elapsed.TotalSeconds -lt $Timeout) -and (-not (& $Condition $ArgumentList))) {
             Start-Sleep -Seconds $RetryInterval
             $totalSecs = [math]::Round($timer.Elapsed.TotalSeconds, 0)
-            Log-Message "Still waiting for action to complete after [$totalSecs] seconds..." | Out-File $backup_log -Append
+            Log-Message-Info "Still waiting for action to complete after [$totalSecs] seconds..."
         }
         $timer.Stop()
         if ($timer.Elapsed.TotalSeconds -gt $Timeout) {
@@ -147,7 +171,7 @@ function Extract-Metrics {
         [string]$webgisdr_log,
         [string]$type
     )
-    Log-Message "Extracting metrics of WebGISDR log: $webgisdr_log" | Out-File $backup_log -Append
+    Log-Message-Info "Extracting metrics of WebGISDR log: $webgisdr_log"
 
     $content = Get-Content -Path $webgisdr_log
     $regex_component_time = "^The\sbackup\sof\s(.+)\shas\scompleted\sin\s[0-9]{1,2}hr:[0-9]{1,2}min:[0-9]{1,2}sec\.$"
@@ -196,7 +220,21 @@ function Extract-Path-Backup {
     if ($path_matches.Matches.Length -gt 0) {
         return $path_matches.Matches.Groups[1] | % { $_.Value }
     }
+    throw "No valid backup path"
+}
 
+function Extract-Filename-Backup {
+    Param (
+        [string]$path,
+        [string]$type
+    )
+
+    $regex = "$type\\\\(.*\.webgissite)$"
+    $path_matches = $path | Select-String -Pattern $regex -AllMatches
+    if ($path_matches.Matches.Length -gt 0) {
+        return $path_matches.Matches.Groups[1] | % { $_.Value }
+    }
+    throw "No valid filename"
 }
 
 
@@ -257,37 +295,37 @@ function Push-Metrics {
         [string]$credential_path,
         [string]$pushgateway_job,
         [string]$metric_file
-    ) 
+    )
     add-type @"
-        using System.Net;
-        using System.Security.Cryptography.X509Certificates;
-        public class TrustAllCertsPolicy : ICertificatePolicy {
-            public bool CheckValidationResult(
-                ServicePoint srvPoint, X509Certificate certificate,
-                WebRequest request, int certificateProblem) {
-                return true;
-            }
+    using System.Net;
+    using System.Security.Cryptography.X509Certificates;
+    public class TrustAllCertsPolicy : ICertificatePolicy {
+        public bool CheckValidationResult(
+            ServicePoint srvPoint, X509Certificate certificate,
+            WebRequest request, int certificateProblem) {
+            return true;
         }
+    }
 "@
     [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-    
-     
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Ssl3, [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12
+         
     if ( (Get-Item $metric_file).length -eq 0 ) {
-        Log-Message "No exists metrics file" | Out-File $backup_log -Append
+        Log-Message-Error "No exists metrics file"
         exit 1
     }
     Replace-NewLine -metric_file $metric_file
 
-    Log-Message "Sending metrics to $pushgateway_host" | Out-File $backup_log -Append
+    Log-Message-Info "Sending metrics to $pushgateway_host"
         
     $credential = Import-CliXml -Path $credential_path
     $status = (Invoke-WebRequest -Uri "$pushgateway_host/metrics/job/$pushgateway_job" -Method POST -InFile $metric_file -Credential $credential).statuscode
     
     if ( $status -ne 200 ) {
-        Log-Message "Error sending metrics to pushgateway" | Out-File $backup_log -Append
+        Log-Message-Error "Error sending metrics to pushgateway"
         exit 1
     }
-    Log-Message "Metrics sent" | Out-File $backup_log -Append
+    Log-Message-Info "Metrics sent"
 }
 
 function Main {
@@ -304,23 +342,24 @@ function Main {
     $datetime = (Get-Date).ToString("s").Replace(":","-")
     $logs_path = "$workdir\logs"
     $webgisdr_log = "$logs_path\$datetime-$type-webgisdr.log"
-    $backup_log = "$logs_path\$datetime-$type-backup.log"
+    $global:backup_log = "$logs_path\$datetime-$type-backup.log"
     $metric_file = "$logs_path\$datetime-metrics.txt"
     $minio_path = "$workdir\mc.exe"
     $status_backup = 1
 
     try {
         New-Item -ItemType Directory -Force -Path $logs_path | Out-Null
-        Log-Message "Starting ArcGIS Enterprise backup" | Out-File $backup_log -Append
+        Log-Message-Info "Starting ArcGIS Enterprise backup"
         Create-Metric-File -path $metric_file
         Run-WebGisDR -webgisdr_path $webgisdr_path -file_properties $file_properties -webgisdr_log $webgisdr_log
         $path_backup = Extract-Path-Backup -webgisdr_log $webgisdr_log
-        Move-Backup-To-Minio -minio_path $minio_path -path_backup $path_backup -bucket $bucket -backup_log $backup_log
+        $filename_backup = Extract-Filename-Backup -path $path_backup -type $type
+        Move-Backup-To-Minio -minio_path $minio_path -path_backup $path_backup -bucket "$bucket/$filename_backup"
         Extract-Metrics -metric_file $metric_file -webgisdr_log $webgisdr_log -type $type
         Append-Metric-Size-Backup -path_backup $path_backup -metric_file $metric_file -type $type
-        Log-Message "ArcGIS Enterprise backup completed successfully" | Out-File $backup_log -Append
+        Log-Message-Info "ArcGIS Enterprise backup completed successfully"
     } catch {
-        Log-Message "ERROR: $_" | Out-File $backup_log -Append
+        Log-Message-Error "$_"
         $status_backup = 0
     } finally {
         Append-Metric-Status-Backup -metric_file $metric_file -type $type -status $status_backup
