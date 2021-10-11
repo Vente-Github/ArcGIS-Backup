@@ -72,7 +72,7 @@ function Run-WebGisDR {
         throw "File $webgisdr_log not exists"
     }
 
-    # Chequea el log de WebGISDR para comprobar que el backup está creado
+    # Chequea el log de WebGISDR para comprobar que el backup estᠣreado
     $backup_successfully = Check-Status-Backup -webgisdr_log $webgisdr_log
     if ($backup_successfully -eq 0) {
         throw "Error creating ArcGIS Enterprise backup"
@@ -104,7 +104,8 @@ function Move-Backup-To-Minio {
 
     $args = "mv --quiet $path_backup $bucket"
     $stderr = New-TemporaryFile
-    $process = Start-Process -FilePath $minio_path -Args $args -NoNewWindow -RedirectStandardError $stderr -RedirectStandardOutput $backup_log -PassThru -Wait
+    $stdout = New-TemporaryFile
+    $process = Start-Process -FilePath $minio_path -Args $args -NoNewWindow -RedirectStandardError $stderr -RedirectStandardOutput $stdout -PassThru -Wait
 
     if ($process.ExitCode -ne 0) {
         throw "$stderr"
@@ -179,7 +180,7 @@ function Extract-Metrics {
     foreach ($line in $content) {
         $matches = echo $line | select-string -Pattern $regex_component_time -AllMatches
         if ($matches.Matches.Length -gt 0) {
-            # Añade cabecera de la métrica sino se había inicializado antes
+            # A񡤥 cabecera de la m鴲ica sino se hab𨁩nicializado antes
             if ((Get-Item $metric_file).length -eq 0) {
                 Add-Content $metric_file "# HELP arcgis_backup_duration_seconds duration of each stage execution in seconds."
                 Add-Content $metric_file "# TYPE arcgis_backup_duration_seconds gauge"
