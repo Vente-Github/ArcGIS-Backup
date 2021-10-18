@@ -67,27 +67,35 @@
       msg: "Not exists {{ webgisdr_runnable_path }}"
     when: webgisdr_status.stat.exists == false
 
-  - name: Create directory {{ workdir }}
+  - name: Create structure directories
     win_file:
-      path: "{{ workdir }}"
+      path: "{{ workdir }}/{{ item.path }}"
       state: directory
+    loop:
+      - { path: "logs" }
+      - { path: "tmp/full/temporal" }
+      - { path: "tmp/incremental/temporal" }
+
+  - name: Share backup folder
+    win_share:
+      name: ArcGIS Backup
+      description: ArcGIS backup
+      path: "{{ workdir }}/tmp"
+      full: "{{ task_user }}"
 
   - name: Copy properties files to {{ workdir }}
     win_copy:
       src: "{{ properties_path }}/"
       dest: "{{ workdir }}/"
 
-  - name: "Download script {{ generate_credentials_filename }}"
+  - name: "Download scripts"
     win_get_url:
-      url: "{{ url_base_gitlab }}/{{ generate_credentials_filename }}"
+      url: "{{ url_base_gitlab }}/{{ item.filename }}"
       dest: "{{ workdir }}/{{ generate_credentials_filename }}"
       follow_redirects: all
-
-  - name: "Download script {{ backup_filename }}"
-    win_get_url:
-      url: "{{ url_base_gitlab }}/{{ backup_filename }}"
-      dest: "{{ workdir }}/{{ backup_filename }}"
-      follow_redirects: all
+    loop:
+      - { filename: "{{ generate_credentials_filename }}" }
+      - { filename: "{{ backup_filename }}" }
 
   - name: "Download minio cli"
     win_get_url:
