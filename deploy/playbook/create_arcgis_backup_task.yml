@@ -78,7 +78,7 @@
 
   - name: Share backup folder
     win_share:
-      name: ArcGIS Backup
+      name: ArcGIS-Backup
       description: ArcGIS backup
       path: "{{ workdir }}/tmp"
       full: "{{ task_user }}"
@@ -91,7 +91,7 @@
   - name: "Download scripts"
     win_get_url:
       url: "{{ url_base_gitlab }}/{{ item.filename }}"
-      dest: "{{ workdir }}/{{ generate_credentials_filename }}"
+      dest: "{{ workdir }}/{{ item.filename }}"
       follow_redirects: all
     loop:
       - { filename: "{{ generate_credentials_filename }}" }
