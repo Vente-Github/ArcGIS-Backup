@@ -1,12 +1,12 @@
 Param(
     [Parameter(Mandatory=$True,Position=1)][string]$workdir,
-    [Parameter(Mandatory=$True)][string]$pushgateway_host, 
+    [Parameter(Mandatory=$True)][string]$pushgateway_host,
     [Parameter(Mandatory=$True)][string]$pushgateway_credentials,
     [Parameter(Mandatory=$True)][string]$pushgateway_job,
     [Parameter(Mandatory=$True)][string]$webgisdr_path,
     [Parameter(Mandatory=$True)][string]$file_properties,
     [Parameter(Mandatory=$True)][string]$type,
-    [Parameter(Mandatory=$True)][string]$bucket
+    [Parameter(Mandatory=$True)][int]$num_keep_backups
 )
 
 $global:backup_log = $null
@@ -23,7 +23,7 @@ function Log-Message-Base
         [Parameter(Mandatory=$true, Position=1, ValueFromPipeline)]
         [string]$LogMessage
     )
-    $line = Write-Output ("{0} {1}: {2}`n" -f (Get-Date -format "yyyy-MM-ddTHH:mm:ss.fffK"), $Level, $LogMessage) 
+    $line = Write-Output ("{0} {1}: {2}`n" -f (Get-Date -format "yyyy-MM-ddTHH:mm:ss.fffK"), $Level, $LogMessage)
     $line | Out-File $backup_log -Encoding UTF8 -Append -NoNewline
 }
 
@@ -65,7 +65,7 @@ function Run-WebGisDR {
     if ($process.ExitCode -ne 0) {
         throw "$stderr"
     }
-    
+
     # Espera por fichero log con la traza del backup, en caso de no crearse se retorna con fallo
     $exists_webgisdr_log = (Wait-Action -Condition {Test-Path $webgisdr_log -PathType leaf})
     if ($exists_webgisdr_log -eq 0) {
@@ -94,24 +94,6 @@ function Check-Status-Backup {
     return 0
 }
 
-function Move-Backup-To-Minio {
-    Param (
-        [string]$minio_path,
-        [string]$path_backup,
-        [string]$bucket
-    )
-    Log-Message-Info "Uploading backup $path_backup to $bucket"
-
-    $args = "mv --quiet $path_backup $bucket"
-    $stderr = New-TemporaryFile
-    $stdout = New-TemporaryFile
-    $process = Start-Process -FilePath $minio_path -Args $args -NoNewWindow -RedirectStandardError $stderr -RedirectStandardOutput $stdout -PassThru -Wait
-
-    if ($process.ExitCode -ne 0) {
-        throw "$stderr"
-    }
-    Log-Message-Info "Backup uploaded"
-}
 
 function Wait-Action {
     [OutputType([int])]
@@ -158,9 +140,9 @@ function Create-Metric-File {
     )
 
     if ( Test-Path $path -PathType leaf ) {
-        Remove-Item $path 
+        Remove-Item $path
     }
-    
+
     New-Item $path | Out-Null
     return $path
 }
@@ -180,12 +162,11 @@ function Extract-Metrics {
     foreach ($line in $content) {
         $matches = echo $line | select-string -Pattern $regex_component_time -AllMatches
         if ($matches.Matches.Length -gt 0) {
-            # A񡤥 cabecera de la m鴲ica sino se hab𨁩nicializado antes
             if ((Get-Item $metric_file).length -eq 0) {
                 Add-Content $metric_file "# HELP arcgis_backup_duration_seconds duration of each stage execution in seconds."
                 Add-Content $metric_file "# TYPE arcgis_backup_duration_seconds gauge"
             }
-            $component = $matches.Matches.Groups[1] | % { $_.Value }        
+            $component = $matches.Matches.Groups[1] | % { $_.Value }
             $duration_seconds = Extract-Duration-Seconds -line $line
             Add-Content $metric_file "arcgis_backup_duration_seconds{component=`"$component`", type=`"$type`"} $duration_seconds"
         }
@@ -206,7 +187,7 @@ function Extract-Duration-Seconds {
         $minutes = $matches.Matches.Groups[2] | % { $_.Value }
         $seconds = $matches.Matches.Groups[3] | % { $_.Value }
 
-        return [int]$hours * 3600 + [int]$minutes * 60 + [int]$seconds 
+        return [int]$hours * 3600 + [int]$minutes * 60 + [int]$seconds
     }
 }
 
@@ -290,6 +271,23 @@ function Replace-NewLine {
 }
 
 
+function Clean-Old-Backups
+{
+    Param
+    (
+        [Parameter(Mandatory=$true, Position=0)]
+        [string]$path,
+        [Parameter(Mandatory=$true, Position=1)]
+        [int]$num_keep_backups = 1
+    )
+    Get-ChildItem -Path $path -File -Filter *.webgissite | Sort-Object -Property LastWriteTime -Descending | Select-Object -Skip $num_keep_backups |
+    Foreach-Object {
+        Remove-Item $_.FullName
+        Log-Message-Info "Backup $_.FullName deleted"
+    }
+}
+
+
 function Push-Metrics {
     Param (
         [string]$pushgateway_host,
@@ -310,7 +308,7 @@ function Push-Metrics {
 "@
     [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Ssl3, [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12
-         
+
     if ( (Get-Item $metric_file).length -eq 0 ) {
         Log-Message-Error "No exists metrics file"
         exit 1
@@ -318,10 +316,10 @@ function Push-Metrics {
     Replace-NewLine -metric_file $metric_file
 
     Log-Message-Info "Sending metrics to $pushgateway_host"
-        
+
     $credential = Import-CliXml -Path $credential_path
     $status = (Invoke-WebRequest -Uri "$pushgateway_host/metrics/job/$pushgateway_job" -Method POST -InFile $metric_file -Credential $credential).statuscode
-    
+
     if ( $status -ne 200 ) {
         Log-Message-Error "Error sending metrics to pushgateway"
         exit 1
@@ -338,7 +336,7 @@ function Main {
         [string]$webgisdr_path,
         [string]$file_properties,
         [string]$type,
-        [string]$bucket
+        [int]$num_keep_backups
     )
     $datetime = (Get-Date).ToString("s").Replace(":","-")
     $logs_path = "$workdir\logs"
@@ -355,7 +353,7 @@ function Main {
         Run-WebGisDR -webgisdr_path $webgisdr_path -file_properties $file_properties -webgisdr_log $webgisdr_log
         $path_backup = Extract-Path-Backup -webgisdr_log $webgisdr_log
         $filename_backup = Extract-Filename-Backup -path $path_backup -type $type
-        Move-Backup-To-Minio -minio_path $minio_path -path_backup $path_backup -bucket "$bucket/$filename_backup"
+        Clean-Old-Backups -path $path_backup -num_keep_backups $num_keep_backups
         Extract-Metrics -metric_file $metric_file -webgisdr_log $webgisdr_log -type $type
         Append-Metric-Size-Backup -path_backup $path_backup -metric_file $metric_file -type $type
         Log-Message-Info "ArcGIS Enterprise backup completed successfully"
@@ -369,4 +367,4 @@ function Main {
     }
 }
 
-Main -workdir $workdir -pushgateway_host $pushgateway_host -pushgateway_credential $pushgateway_credential -pushgateway_job $pushgateway_job -webgisdr_path $webgisdr_path -file_properties $file_properties -type $type -bucket $bucket
+Main -workdir $workdir -pushgateway_host $pushgateway_host -pushgateway_credential $pushgateway_credential -pushgateway_job $pushgateway_job -webgisdr_path $webgisdr_path -file_properties $file_properties -type $type -num_keep_backups $num_keep_backups

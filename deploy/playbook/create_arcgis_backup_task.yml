@@ -57,13 +57,13 @@
     minio_alias: "{{ lookup('env', 'MINIO_ALIAS') }}"
     minio_bucket: "{{ lookup('env', 'MINIO_BUCKET') }}"
   tasks:
-  - name: "Check {{ webgisdr_runnable_path}} exists" 
+  - name: "Check {{ webgisdr_runnable_path}} exists"
     win_stat:
       path: "{{ webgisdr_runnable_path }}"
     register: webgisdr_status
 
   - name: Fail if not exists webgisdr
-    fail: 
+    fail:
       msg: "Not exists {{ webgisdr_runnable_path }}"
     when: webgisdr_status.stat.exists == false
 
@@ -136,21 +136,22 @@
     vars:
       type: full
       file_properties: "{{ workdir }}/webgisdr-{{ type }}.properties"
+      num_keep_backups: 1
     win_scheduled_task:
       name: ArcGIS Enterprise - Full backup
       description: Backup full de ArcGIS Enterprise
       actions:
       - path: '{{ powershell_path }}'
         arguments: >
-          -Command "& '{{ workdir }}/{{ backup_filename }}' 
-          -workdir '{{ workdir }}' 
-          -pushgateway_host {{ pushgateway_host }} 
-          -pushgateway_job '{{ pushgateway_job }}-{{ type }}' 
-          -pushgateway_credential '{{ pushgateway_credentials_path }}' 
-          -webgisdr_path '{{ webgisdr_runnable_path }}' 
+          -Command "& '{{ workdir }}/{{ backup_filename }}'
+          -workdir '{{ workdir }}'
+          -pushgateway_host {{ pushgateway_host }}
+          -pushgateway_job '{{ pushgateway_job }}-{{ type }}'
+          -pushgateway_credential '{{ pushgateway_credentials_path }}'
+          -webgisdr_path '{{ webgisdr_runnable_path }}'
           -file_properties '{{ file_properties }}'"
           -type '{{ type }}'
-          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}'"
+          -num_keep_backups {{ num_keep_backups }}"
       triggers:
         - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
@@ -166,21 +167,22 @@
     vars:
       type: incremental
       file_properties: "{{ workdir }}/webgisdr-{{ type }}.properties"
+      num_keep_backups: 1
     win_scheduled_task:
       name: ArcGIS Enterprise - Incremental backup
       description: Backup incremental de ArcGIS Enterprise
       actions:
       - path: '{{ powershell_path }}'
         arguments: >
-          -Command "& '{{ workdir }}/{{ backup_filename }}' 
-          -workdir '{{ workdir }}' 
-          -pushgateway_host {{ pushgateway_host }} 
+          -Command "& '{{ workdir }}/{{ backup_filename }}'
+          -workdir '{{ workdir }}'
+          -pushgateway_host {{ pushgateway_host }}
           -pushgateway_job '{{ pushgateway_job }}-{{ type }}'
-          -pushgateway_credential '{{ pushgateway_credentials_path }}' 
-          -webgisdr_path '{{ webgisdr_runnable_path }}' 
+          -pushgateway_credential '{{ pushgateway_credentials_path }}'
+          -webgisdr_path '{{ webgisdr_runnable_path }}'
           -file_properties '{{ file_properties }}'
           -type '{{ type }}'
-          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}'"
+          -num_keep_backups {{ num_keep_backups }}"
       triggers:
         - type: weekly
           start_boundary: '2020-01-01T22:00:00'

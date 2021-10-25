@@ -1,5 +1,5 @@
 Param (
-    [Parameter(Mandatory=$True)][string]$user, 
+    [Parameter(Mandatory=$True)][string]$user,
     [Parameter(Mandatory=$True)][string]$password,
     [Parameter(Mandatory=$True)][string]$path
 )
