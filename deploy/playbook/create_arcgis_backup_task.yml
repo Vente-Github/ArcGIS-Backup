@@ -15,7 +15,7 @@
         dest: "{{ workdir }}/{{ script_filename }}"
 
     - name: Change permisions
-      file: 
+      file:
         path: "{{ workdir }}/{{ script_filename }}"
         mode: '0777'
 
