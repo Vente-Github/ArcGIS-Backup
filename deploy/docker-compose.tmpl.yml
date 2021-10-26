@@ -18,11 +18,6 @@ services:
       PUSHGATEWAY_USER:
       PUSHGATEWAY_PASS:
       PUSHGATEWAY_HOST:
-      MINIO_ALIAS:
-      MINIO_BUCKET:
-      MINIO_HOST:
-      MINIO_USER:
-      MINIO_PASS:
       WORK_DIR:
       TASK_USER:
       TASK_PASSWORD:
