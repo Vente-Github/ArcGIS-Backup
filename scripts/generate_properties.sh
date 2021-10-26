@@ -13,7 +13,7 @@ done
 WGD_PREFIX="${PREFIX:-WGD_}"
 env_vars=($(env | grep "${WGD_PREFIX}"))
 
-env_vars+=("${WGD_PREFIX}SHARED_LOCATION=${BACKUP_LOCATION_ROOT}\\\\${TYPE}\\\\temporal")
+env_vars+=("${WGD_PREFIX}SHARED_LOCATION=${BACKUP_SHARED_LOCATION_ROOT}\\\\${TYPE}\\\\temporal")
 env_vars+=("${WGD_PREFIX}BACKUP_LOCATION=${BACKUP_LOCATION_ROOT}\\\\${TYPE}\\\\")
 env_vars+=("WGD_BACKUP_RESTORE_MODE=${TYPE}")
 

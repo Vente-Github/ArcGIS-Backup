@@ -15,7 +15,7 @@
         dest: "{{ workdir }}/{{ script_filename }}"
 
     - name: Change permisions
-      file: 
+      file:
         path: "{{ workdir }}/{{ script_filename }}"
         mode: '0777'
 
@@ -54,46 +54,46 @@
     pushgateway_job: "arcgis-backup"
     task_user: "{{ lookup('env', 'TASK_USER') }}"
     task_password: "{{ lookup('env', 'TASK_PASSWORD') }}"
-    minio_alias: "{{ lookup('env', 'MINIO_ALIAS') }}"
-    minio_bucket: "{{ lookup('env', 'MINIO_BUCKET') }}"
   tasks:
-  - name: "Check {{ webgisdr_runnable_path}} exists" 
+  - name: "Check {{ webgisdr_runnable_path}} exists"
     win_stat:
       path: "{{ webgisdr_runnable_path }}"
     register: webgisdr_status
 
   - name: Fail if not exists webgisdr
-    fail: 
+    fail:
       msg: "Not exists {{ webgisdr_runnable_path }}"
     when: webgisdr_status.stat.exists == false
 
-  - name: Create directory {{ workdir }}
+  - name: Create structure directories
     win_file:
-      path: "{{ workdir }}"
+      path: "{{ workdir }}/{{ item.path }}"
       state: directory
+    loop:
+      - { path: "logs" }
+      - { path: "tmp/full/temporal" }
+      - { path: "tmp/incremental/temporal" }
+
+  - name: Share backup folder
+    win_share:
+      name: ArcGIS-Backup
+      description: ArcGIS backup
+      path: "{{ workdir }}/tmp"
+      full: "{{ task_user }}"
 
   - name: Copy properties files to {{ workdir }}
     win_copy:
       src: "{{ properties_path }}/"
       dest: "{{ workdir }}/"
 
-  - name: "Download script {{ generate_credentials_filename }}"
+  - name: "Download scripts"
     win_get_url:
-      url: "{{ url_base_gitlab }}/{{ generate_credentials_filename }}"
-      dest: "{{ workdir }}/{{ generate_credentials_filename }}"
+      url: "{{ url_base_gitlab }}/{{ item.filename }}"
+      dest: "{{ workdir }}/{{ item.filename }}"
       follow_redirects: all
-
-  - name: "Download script {{ backup_filename }}"
-    win_get_url:
-      url: "{{ url_base_gitlab }}/{{ backup_filename }}"
-      dest: "{{ workdir }}/{{ backup_filename }}"
-      follow_redirects: all
-
-  - name: "Download minio cli"
-    win_get_url:
-      url: "https://dl.min.io/client/mc/release/windows-amd64/mc.exe"
-      dest: "{{ workdir }}/mc.exe"
-      follow_redirects: all
+    loop:
+      - { filename: "{{ generate_credentials_filename }}" }
+      - { filename: "{{ backup_filename }}" }
 
   - name: "Add {{ task_user }} allow rights to folder {{ workdir }}"
     win_acl:
@@ -104,16 +104,6 @@
       state: present
       inherit: ContainerInherit, ObjectInherit
       propagation: 'None'
-
-  - name: "Set minio default"
-    vars:
-      minio_host: "{{ lookup('env', 'MINIO_HOST') }}"
-      minio_user: "{{ lookup('env', 'MINIO_USER') }}"
-      minio_pass: "{{ lookup('env', 'MINIO_PASS') }}"
-    win_command: "{{ workdir }}/mc.exe alias set {{ minio_alias }} {{ minio_host }} {{ minio_user }} {{ minio_pass }}"
-    become: yes
-    become_user: "{{ task_user }}"
-    become_method: "runas"
 
   - name: "Generate pushgateway credentials: {{ pushgateway_credentials_path }}"
     vars:
@@ -128,21 +118,22 @@
     vars:
       type: full
       file_properties: "{{ workdir }}/webgisdr-{{ type }}.properties"
+      num_keep_backups: 1
     win_scheduled_task:
       name: ArcGIS Enterprise - Full backup
       description: Backup full de ArcGIS Enterprise
       actions:
       - path: '{{ powershell_path }}'
         arguments: >
-          -Command "& '{{ workdir }}/{{ backup_filename }}' 
-          -workdir '{{ workdir }}' 
-          -pushgateway_host {{ pushgateway_host }} 
-          -pushgateway_job '{{ pushgateway_job }}-{{ type }}' 
-          -pushgateway_credential '{{ pushgateway_credentials_path }}' 
-          -webgisdr_path '{{ webgisdr_runnable_path }}' 
-          -file_properties '{{ file_properties }}'"
+          -Command "& '{{ workdir }}/{{ backup_filename }}'
+          -workdir '{{ workdir }}'
+          -pushgateway_host {{ pushgateway_host }}
+          -pushgateway_job '{{ pushgateway_job }}-{{ type }}'
+          -pushgateway_credential '{{ pushgateway_credentials_path }}'
+          -webgisdr_path '{{ webgisdr_runnable_path }}'
+          -file_properties '{{ file_properties }}'
           -type '{{ type }}'
-          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}'"
+          -num_keep_backups {{ num_keep_backups }}"
       triggers:
         - type: monthlydow
           start_boundary: '2020-01-01T22:00:00'
@@ -158,21 +149,22 @@
     vars:
       type: incremental
       file_properties: "{{ workdir }}/webgisdr-{{ type }}.properties"
+      num_keep_backups: 1
     win_scheduled_task:
       name: ArcGIS Enterprise - Incremental backup
       description: Backup incremental de ArcGIS Enterprise
       actions:
       - path: '{{ powershell_path }}'
         arguments: >
-          -Command "& '{{ workdir }}/{{ backup_filename }}' 
-          -workdir '{{ workdir }}' 
-          -pushgateway_host {{ pushgateway_host }} 
+          -Command "& '{{ workdir }}/{{ backup_filename }}'
+          -workdir '{{ workdir }}'
+          -pushgateway_host {{ pushgateway_host }}
           -pushgateway_job '{{ pushgateway_job }}-{{ type }}'
-          -pushgateway_credential '{{ pushgateway_credentials_path }}' 
-          -webgisdr_path '{{ webgisdr_runnable_path }}' 
+          -pushgateway_credential '{{ pushgateway_credentials_path }}'
+          -webgisdr_path '{{ webgisdr_runnable_path }}'
           -file_properties '{{ file_properties }}'
           -type '{{ type }}'
-          -bucket '{{ minio_alias }}/{{ minio_bucket }}/{{ type }}'"
+          -num_keep_backups {{ num_keep_backups }}"
       triggers:
         - type: weekly
           start_boundary: '2020-01-01T22:00:00'
