@@ -134,6 +134,7 @@ function Wait-Action {
     }
 }
 
+
 function Create-Metric-File {
     Param (
         [string]$path
@@ -205,6 +206,7 @@ function Extract-Path-Backup {
     throw "No valid backup path"
 }
 
+
 function Extract-Filename-Backup {
     Param (
         [string]$path,
@@ -217,6 +219,21 @@ function Extract-Filename-Backup {
         return $path_matches.Matches.Groups[1] | % { $_.Value }
     }
     throw "No valid filename"
+}
+
+
+function Extract-Folder-Backup {
+    Param (
+        [string]$path,
+        [string]$type
+    )
+
+    $regex = "(.*$type)\\\\"
+    $path_matches = $path | Select-String -Pattern $regex -AllMatches
+    if ($path_matches.Matches.Length -gt 0) {
+        return $path_matches.Matches.Groups[1] | % { $_.Value }
+    }
+    throw "No valid path"
 }
 
 
@@ -246,6 +263,7 @@ function Append-Metric-Status-Backup {
     Add-Content $metric_file "# TYPE arcgis_backup gauge"
     Add-Content $metric_file "arcgis_backup{type=`"$type`"} $status"
 }
+
 
 function Append-Metric-Creation-Date {
     Param (
@@ -280,6 +298,8 @@ function Clean-Old-Backups
         [Parameter(Mandatory=$true, Position=1)]
         [int]$num_keep_backups = 1
     )
+    
+    Log-Message-Info "Delete old backups from $path"
     Get-ChildItem -Path $path -File -Filter *.webgissite | Sort-Object -Property LastWriteTime -Descending | Select-Object -Skip $num_keep_backups |
     Foreach-Object {
         Remove-Item $_.FullName
@@ -327,6 +347,7 @@ function Push-Metrics {
     Log-Message-Info "Metrics sent"
 }
 
+
 function Main {
     Param (
         [string]$workdir,
@@ -343,7 +364,6 @@ function Main {
     $webgisdr_log = "$logs_path\$datetime-$type-webgisdr.log"
     $global:backup_log = "$logs_path\$datetime-$type-backup.log"
     $metric_file = "$logs_path\$datetime-metrics.txt"
-    $minio_path = "$workdir\mc.exe"
     $status_backup = 1
 
     try {
@@ -353,7 +373,8 @@ function Main {
         Run-WebGisDR -webgisdr_path $webgisdr_path -file_properties $file_properties -webgisdr_log $webgisdr_log
         $path_backup = Extract-Path-Backup -webgisdr_log $webgisdr_log
         $filename_backup = Extract-Filename-Backup -path $path_backup -type $type
-        Clean-Old-Backups -path $path_backup -num_keep_backups $num_keep_backups
+        $folder_backup = Extract-Folder-Backup -path $path_backup -type $type
+        Clean-Old-Backups -path $folder_backup -num_keep_backups $num_keep_backups
         Extract-Metrics -metric_file $metric_file -webgisdr_log $webgisdr_log -type $type
         Append-Metric-Size-Backup -path_backup $path_backup -metric_file $metric_file -type $type
         Log-Message-Info "ArcGIS Enterprise backup completed successfully"
