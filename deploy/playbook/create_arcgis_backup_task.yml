@@ -149,7 +149,7 @@
           -pushgateway_job '{{ pushgateway_job }}-{{ type }}'
           -pushgateway_credential '{{ pushgateway_credentials_path }}'
           -webgisdr_path '{{ webgisdr_runnable_path }}'
-          -file_properties '{{ file_properties }}'"
+          -file_properties '{{ file_properties }}'
           -type '{{ type }}'
           -num_keep_backups {{ num_keep_backups }}"
       triggers:
